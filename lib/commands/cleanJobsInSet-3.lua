@@ -7,9 +7,10 @@
     KEYS[3]  rate limiter key
 
     ARGV[1]  jobId
-    ARGV[2]  timestamp
-    ARGV[3]  limit the number of jobs to be removed. 0 is unlimited
-    ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
+    ARGV[2]  maxTimestamp
+    ARGV[3]  stopAfterMaxTimestamp, can be set as an optimization to stop when we see a time after maxTimestamp
+    ARGV[4]  limit the number of jobs to be removed. 0 is unlimited
+    ARGV[5]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
 ]]
 
 local setKey = KEYS[1]
@@ -17,9 +18,10 @@ local priorityKey = KEYS[2]
 local rateLimiterKey = KEYS[3]
 
 local jobKeyPrefix = ARGV[1]
-local maxTimestamp = ARGV[2]
-local limitStr = ARGV[3]
-local setName = ARGV[4]
+local maxTimestamp = tonumber(ARGV[2])
+local stopAfterMaxTimestamp = ARGV[3] == "true"
+local limitStr = ARGV[4]
+local setName = ARGV[5]
 
 local command = "ZRANGE"
 local isList = false
@@ -37,17 +39,18 @@ local rangeEnd = -1
 -- If we're only deleting _n_ items, avoid retrieving all items
 -- for faster performance
 --
--- Start from the tail of the list, since that's where oldest elements
+-- Start from the start of the list, since that's where oldest elements
 -- are generally added for FIFO lists
 if limit > 0 then
-  rangeStart = -1 - limit + 1
-  rangeEnd = -1
+  rangeStart = 0
+  rangeEnd = limit
 end
 
 local jobIds = rcall(command, setKey, rangeStart, rangeEnd)
 local deleted = {}
 local deletedCount = 0
 local jobTS
+local passedMaxTimestamp = false
 
 -- Run this loop:
 -- - Once, if limit is -1 or 0
@@ -68,7 +71,7 @@ while ((limit <= 0 or deletedCount < limit) and next(jobIds, nil) ~= nil) do
       -- Fetch all three of these (in that order) and use the first one that is set so that we'll leave jobs that have been active within the grace period:
       for _, ts in ipairs(rcall("HMGET", jobKey, "finishedOn", "processedOn", "timestamp")) do
         if (ts) then
-          jobTS = ts
+          jobTS = tonumber(ts)
           break
         end
       end
@@ -98,6 +101,11 @@ while ((limit <= 0 or deletedCount < limit) and next(jobIds, nil) ~= nil) do
         deletedCount = deletedCount + 1
         table.insert(deleted, jobId)
       end
+
+      if (jobTS and jobTS > maxTimestamp) then
+        passedMaxTimestamp = true
+        break
+      end
     end
   end
 
@@ -107,10 +115,14 @@ while ((limit <= 0 or deletedCount < limit) and next(jobIds, nil) ~= nil) do
     break
   end
 
+  if maxTimestamp and stopAfterMaxTimestamp and passedMaxTimestamp then
+    break
+  end
+
   if deletedCount < limit then
     -- We didn't delete enough. Look for more to delete
-    rangeStart = rangeStart - limit
-    rangeEnd = rangeEnd - limit
+    rangeStart = rangeStart + limit
+    rangeEnd = rangeEnd + limit
     jobIds = rcall(command, setKey, rangeStart, rangeEnd)
   end
 end

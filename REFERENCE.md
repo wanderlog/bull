@@ -830,10 +830,28 @@ Returns a promise that resolves to a Metrics object.
 ### Queue#clean
 
 ```ts
-clean(grace: number, status?: string, limit?: number): Promise<number[]>
+clean(grace: number, status?: string, opts?: CleanOpts): Promise<number[]>
 ```
 
 Tells the queue remove jobs of a specific type created outside of a grace period.
+
+To ensure the clean finishes within a fairly short period of time, you may want
+to provide `opts` to limit the clean operation.
+
+```typescript
+interface CleanOpts {
+  /** How many entries to clean before returning. Defaults to unlimited */
+  limit?: number;
+  /**
+   * A performance optimization causing us to stop as soon as we encounter a
+   * timestamp within the grace period.
+   *
+   * This can be used with `limit` to prevent us from endlessly iterating
+   * through large queues filled with entries within the grace period.
+   */
+  stopWithinGrace?: boolean;
+}
+```
 
 #### Example
 
