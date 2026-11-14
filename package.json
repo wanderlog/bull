@@ -1,5 +1,5 @@
 {
-  "name": "bull",
+  "name": "@wanderlogapp/bull",
   "version": "4.8.3-wanderlog.1",
   "description": "Job manager",
   "engines": {
