@@ -1,3 +1,43 @@
+# Wanderlog fork
+
+This is Wanderlog's fork of Bull. We publish it to npm as
+[`@wanderlogapp/bull`](https://www.npmjs.com/package/@wanderlogapp/bull).
+The itineraries repo installs it with
+`"bull": "npm:@wanderlogapp/bull@…"`.
+
+## Releasing a new version
+
+First, commit and push your change to the `wanderlog` branch. Check
+https://github.com/wanderlog/bull/tags for the latest version, and add 1 to
+the last number. Make sure `npm whoami` prints `wanderlogapp` (if not, run
+`npm login`). Then run:
+
+```shell
+VERSION='<substitute version here>' # e.g., VERSION='v4.8.3-wanderlog.2'
+
+# Start wanderlog-built from the latest commit on the wanderlog branch
+git fetch
+git checkout wanderlog-built
+git reset --hard origin/wanderlog
+
+# Rename the package for npm, and set its version (without the leading v)
+npm pkg set name='@wanderlogapp/bull' version="${VERSION#v}"
+
+# Commit, tag, and push the release
+git commit -am "[$VERSION] Release built version"
+git tag "$VERSION"
+git push -f origin wanderlog-built "$VERSION"
+
+# Publish to npm. --ignore-scripts skips the package's build and install
+# scripts, since the built files are already committed
+npm publish --access public --ignore-scripts
+```
+
+Then, in itineraries, bump the version in the `npm:@wanderlogapp/bull@…`
+alias and run `yarn install`. New `@wanderlogapp/*` versions skip the
+one-week age gate because of `npmPreapprovedPackages` in `.yarnrc.yml`.
+
+--------------------------------------------------------------------------------
 
 <div align="center">
   <br/>
